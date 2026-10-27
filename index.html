@@ -1,0 +1,119 @@
+<!doctype html>
+<!-- Página de triagem do Radar Quesito, publicada no repositório público quesitosaude/radar-triagem
+     (GitHub Pages). Não guarda segredo: quem valida o link e grava é a Edge Function `triagem`.
+     Fonte da verdade: radar-quesito/triagem_pagina/index.html. -->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>Triagem · Radar Quesito Saúde</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --verde:#0E3B34; --off:#F7F7F5; --salvia:#A6B89D; --ouro:#C9A96A; --texto:#1E2B28;
+          --sec:#5A6360; --ter:#8B8B82; --borda:#E3E3DC; --borda-forte:#DCDCD4; }
+  body { margin:0; background:var(--off); font-family:Montserrat,Arial,sans-serif; color:var(--texto); line-height:1.7; }
+  .topo { background:var(--verde); padding:20px 24px; }
+  .eyebrow { font-size:12px; font-weight:600; letter-spacing:3px; color:var(--ouro); }
+  .marca { font-size:22px; font-weight:500; letter-spacing:1px; color:var(--off); }
+  .descritor { font-size:10px; font-weight:500; letter-spacing:3px; color:var(--salvia); }
+  main { max-width:560px; margin:24px auto; padding:0 16px; }
+  .card { background:#fff; border:1px solid var(--borda); border-radius:6px; padding:24px; }
+  h1 { font-size:22px; font-weight:600; color:var(--verde); margin:0 0 12px; }
+  .objeto { background:var(--off); border-left:3px solid var(--ouro); padding:12px 16px; font-size:14px; }
+  .objeto small { color:var(--sec); }
+  .opcoes label { display:inline-block; margin:16px 16px 0 0; font-weight:600; color:var(--verde); cursor:pointer; }
+  textarea { width:100%; box-sizing:border-box; margin-top:6px; border:1px solid var(--borda-forte); border-radius:4px;
+             padding:10px; font:inherit; min-height:90px; }
+  button { margin-top:16px; background:var(--verde); color:var(--off); border:0; border-radius:4px; padding:10px 20px;
+           font:600 14px Montserrat,Arial,sans-serif; cursor:pointer; transition:background 150ms ease; }
+  button:hover { background:#0B302A; }
+  button:disabled { opacity:.6; cursor:default; }
+  .erro { color:#8A2E2E; }
+  .rodape { border-top:1px solid var(--ouro); margin-top:24px; padding-top:8px; font-size:11px; color:var(--ter); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="topo">
+  <div class="eyebrow">RADAR · TRIAGEM</div>
+  <div class="marca">Quesito Saúde</div>
+  <div class="descritor">CONSULTORIA E EDUCAÇÃO</div>
+</div>
+<main>
+  <div class="card">
+    <h1 id="titulo">Carregando…</h1>
+    <p id="mensagem"></p>
+    <form id="formulario" hidden>
+      <div class="objeto"><span id="objeto"></span><br><small id="nota"></small></div>
+      <div class="opcoes">
+        <label><input type="radio" name="decisao" value="relevante"> Relevante</label>
+        <label><input type="radio" name="decisao" value="acompanhar"> Acompanhar</label>
+        <label><input type="radio" name="decisao" value="descartar"> Descartar</label>
+      </div>
+      <p style="margin-top:16px"><label for="motivo"><strong>Por quê?</strong> (opcional, ajuda a calibrar o classificador)</label>
+        <textarea id="motivo" maxlength="1000"></textarea></p>
+      <button type="submit" id="confirmar">Confirmar</button>
+    </form>
+  </div>
+  <div class="rodape">Quesito Saúde · Consultoria e Educação</div>
+</main>
+<script>
+  const FUNCAO = "https://yemrhubncoaxjyfztshc.supabase.co/functions/v1/triagem";
+  const ROTULOS = { relevante: "Relevante", acompanhar: "Acompanhar", descartar: "Descartar" };
+  const parametros = new URLSearchParams(location.search);
+  const link = Object.fromEntries(["c", "u", "d", "exp", "sig"].map((nome) => [nome, parametros.get(nome) || ""]));
+  const $ = (id) => document.getElementById(id);
+
+  function mostrar(titulo, mensagem, erro = false) {
+    $("titulo").textContent = titulo;
+    $("mensagem").textContent = mensagem;
+    $("mensagem").className = erro ? "erro" : "";
+  }
+
+  async function chamar(opcoes, url = FUNCAO) {
+    const resposta = await fetch(url, { referrerPolicy: "no-referrer", ...opcoes });
+    const corpo = await resposta.json().catch(() => ({ erro: "Resposta inválida do servidor." }));
+    if (!resposta.ok) throw new Error(corpo.erro || "Não foi possível concluir.");
+    return corpo;
+  }
+
+  async function iniciar() {
+    if (!link.c || !link.sig) return mostrar("Link inválido", "Abra a triagem pelo botão do e-mail do Radar.", true);
+    try {
+      const dados = await chamar({ method: "GET" }, `${FUNCAO}?${new URLSearchParams(link)}`);
+      $("objeto").textContent = dados.objeto;
+      $("nota").textContent = `Nota ${dados.nota}`;
+      const opcao = document.querySelector(`input[name="decisao"][value="${dados.decisao}"]`);
+      if (opcao) opcao.checked = true;
+      mostrar("Confirmar triagem", "");
+      $("formulario").hidden = false;
+    } catch (erro) {
+      mostrar("Link inválido", erro.message, true);
+    }
+  }
+
+  $("formulario").addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const decisao = document.querySelector('input[name="decisao"]:checked')?.value;
+    if (!decisao) return mostrar("Confirmar triagem", "Escolha uma opção.", true);
+    $("confirmar").disabled = true;
+    try {
+      await chamar({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...link, decisao, motivo: $("motivo").value }),
+      });
+      $("formulario").hidden = true;
+      mostrar("Triagem registrada", `Decisão: ${ROTULOS[decisao]}. Obrigado, pode fechar esta página.`);
+    } catch (erro) {
+      $("confirmar").disabled = false;
+      mostrar("Confirmar triagem", erro.message, true);
+    }
+  });
+
+  iniciar();
+</script>
+</body>
+</html>
